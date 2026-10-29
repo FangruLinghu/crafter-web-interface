@@ -1,4 +1,4 @@
-"""Offline adapter checks; no provider requests or pipeline generation runs."""
+"""Offline adapter checks with mocked native MinerU output; no real parsing/model runs."""
 import asyncio
 from contextlib import redirect_stdout
 import importlib
@@ -22,28 +22,13 @@ import ptc_adapter as adapter
 import openai_bridge as bridge
 
 
-def write_pdf(path, text=None, password=None):
-    from pypdf import PdfWriter
-    from pypdf.generic import DictionaryObject, NameObject, DecodedStreamObject
-    writer = PdfWriter()
-    page = writer.add_blank_page(width=612, height=792)
-    if text is not None:
-        font = DictionaryObject({NameObject('/Type'): NameObject('/Font'),
-                                 NameObject('/Subtype'): NameObject('/Type1'),
-                                 NameObject('/BaseFont'): NameObject('/Helvetica')})
-        page[NameObject('/Resources')] = DictionaryObject({NameObject('/Font'): DictionaryObject({
-            NameObject('/F1'): writer._add_object(font)})})
-        stream = DecodedStreamObject()
-        lines = []
-        for line in text.splitlines():
-            escaped = line.replace('\\', '\\\\').replace('(', '\\(').replace(')', '\\)')
-            lines.append(f'({escaped}) Tj T*')
-        stream.set_data(('BT /F1 12 Tf 14 TL 72 720 Td ' + ' '.join(lines) + ' ET').encode('latin1'))
-        page[NameObject('/Contents')] = writer._add_object(stream)
-    if password:
-        writer.encrypt(password)
-    with path.open('wb') as handle:
-        writer.write(handle)
+NATIVE_CONTENT = [[
+    {'type': 'title', 'content': {'level': 1, 'title_content': [{'type': 'text', 'content': '1 Introduction'}]}},
+    {'type': 'paragraph', 'content': {'paragraph_content': [{'type': 'text', 'content': 'Reliable paper text.'}]}},
+    {'type': 'title', 'content': {'level': 1, 'title_content': [{'type': 'text', 'content': '2 Methods'}]}},
+    {'type': 'image', 'content': {'image_source': {'path': 'images/figure.png'},
+                                'image_caption': [{'type': 'text', 'content': 'Algorithm diagram'}]}},
+]]
 
 
 class AdapterTests(unittest.TestCase):
@@ -54,6 +39,8 @@ class AdapterTests(unittest.TestCase):
         self.work.mkdir()
         self.output.mkdir()
         self.pdf = self.root / 'input.pdf'
+        # The subprocess is mocked; this is an opaque retained-input fixture.
+        self.pdf.write_bytes(b'%PDF-1.4\nmocked native parser input\n%%EOF')
         self.old_cwd = Path.cwd()
         self.environment = patch.dict(os.environ, {'CRAFTER_INPUT': str(self.pdf), 'CRAFTER_WORK': str(self.work),
                                                   'CRAFTER_OUTPUT': str(self.output), 'CRAFTER_API_KEY': 'must-not-reach-parser'}, clear=True)
@@ -64,22 +51,33 @@ class AdapterTests(unittest.TestCase):
         self.environment.stop()
         self.temporary.cleanup()
 
-    def preprocess(self):
+    def preprocess(self, runner):
         args = adapter.argument_parser().parse_args(['preprocess'])
-        with redirect_stdout(io.StringIO()):
+        with patch.object(adapter.subprocess, 'run', side_effect=runner), redirect_stdout(io.StringIO()):
             adapter.preprocess(args)
         return json.loads((self.work / 'parsed/paper_content_list_v2.json').read_text())
 
-    def test_pdf_text_extraction_has_actual_partition_schema_and_drops_credentials(self):
-        write_pdf(self.pdf, '1 Introduction\nReliable paper text.\n2 Methods\nA concrete algorithm.')
-        content = self.preprocess()
+    def native_parser(self, command, **kwargs):
+        self.assertEqual(command[:4], [sys.executable, '-B', '-m', 'mineru.cli.client'])
+        self.assertEqual(Path(command[command.index('-p') + 1]), self.pdf.resolve())
+        self.assertNotIn('CRAFTER_API_KEY', kwargs['env'])
+        folder = Path(command[command.index('-o') + 1]) / 'input/hybrid_auto'
+        folder.mkdir(parents=True)
+        (folder / 'input_content_list_v2.json').write_text(json.dumps(NATIVE_CONTENT))
+        (folder / 'images').mkdir()
+        (folder / 'images/figure.png').write_bytes(b'\x89PNG\r\nmock image artifact')
+        return SimpleNamespace(returncode=0)
+
+    def test_native_mineru_artifacts_feed_real_partition_and_drop_credentials(self):
+        content = self.preprocess(self.native_parser)
         self.assertIsInstance(content[0], list)
         self.assertEqual(content[0][0]['type'], 'title')
         self.assertEqual(content[0][1]['content']['paragraph_content'][0]['content'], 'Reliable paper text.')
         self.assertNotIn('CRAFTER_API_KEY', os.environ)
-        self.assertTrue((self.work / 'parsed/images').is_dir())
+        self.assertEqual((self.work / 'parsed/images/figure.png').read_bytes(), b'\x89PNG\r\nmock image artifact')
         details = json.loads((self.work / 'preprocessing.json').read_text())
-        self.assertIn('no OCR', details['limitations'])
+        self.assertEqual(details['parser'], 'mineru')
+        self.assertEqual(details['backend'], 'hybrid-auto-engine')
 
         repo = CRAFTER_REPO
         if not (repo / 'src/agents/partition_agent.py').is_file():
@@ -92,15 +90,25 @@ class AdapterTests(unittest.TestCase):
         result = asyncio.run(agent.run())
         adapter.finish_memory_writers()
         self.assertEqual([section['title'] for section in result['sections']], ['1 Introduction', '2 Methods'])
-        self.assertEqual(result['images'], [])
+        self.assertEqual(result['images'][0]['path'], 'images/figure.png')
 
-    def test_image_only_and_encrypted_inputs_fail_with_explanation(self):
-        write_pdf(self.pdf)
-        with self.assertRaisesRegex(adapter.AdapterError, 'no extractable text'):
-            self.preprocess()
-        write_pdf(self.pdf, 'protected text', password='password')
-        with self.assertRaisesRegex(adapter.AdapterError, 'Encrypted'):
-            self.preprocess()
+    def test_mineru_failure_and_zero_exit_without_output_never_fall_back(self):
+        with self.assertRaisesRegex(adapter.AdapterError, 'exited with code 3'):
+            self.preprocess(lambda *args, **kwargs: SimpleNamespace(returncode=3))
+        with self.assertRaisesRegex(adapter.AdapterError, 'exactly one v2'):
+            self.preprocess(lambda *args, **kwargs: SimpleNamespace(returncode=0))
+        self.assertFalse((self.work / 'parsed/paper_content_list_v2.json').exists())
+
+    def test_mineru_zero_exit_with_invalid_v2_content_is_rejected(self):
+        def malformed(command, **kwargs):
+            folder = Path(command[command.index('-o') + 1]) / 'input/hybrid_auto'
+            folder.mkdir(parents=True)
+            (folder / 'input_content_list_v2.json').write_text('not JSON')
+            return SimpleNamespace(returncode=0)
+
+        with self.assertRaisesRegex(adapter.AdapterError, 'invalid JSON'):
+            self.preprocess(malformed)
+        self.assertFalse((self.work / 'parsed/paper_content_list_v2.json').exists())
 
     def test_v1_content_and_generated_path_traversal_are_rejected(self):
         with self.assertRaisesRegex(adapter.AdapterError, 'nested page/item'):
@@ -168,6 +176,10 @@ class AdapterTests(unittest.TestCase):
         self.assertEqual(status, 0)
         self.assertTrue(result['ready'])
         self.assertTrue(result['entrypoint_compatible'])
+        self.assertTrue(result['dependencies']['mineru'])
+        self.assertTrue(result['capabilities']['mineru'])
+        self.assertEqual(result['parser'], 'mineru')
+        self.assertFalse(result['parser_models_verified'])
         self.assertFalse(result['capabilities']['model_requests_performed'])
         self.assertNotIn('CRAFTER_API_KEY', os.environ)
 

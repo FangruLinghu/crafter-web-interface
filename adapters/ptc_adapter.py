@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Task-local integration for an unmodified ptc_agent_merged checkout.
 
-This adapter extracts real PDF text, invokes the existing pipeline, and adapts
+This adapter invokes MinerU, invokes the existing pipeline, and adapts
 its transport. It does not replace any planning, generation, or debug algorithm.
 """
 import sys
@@ -30,8 +30,9 @@ from urllib.parse import urlsplit
 
 KEY_NAME = re.compile(r"(?:API_KEY|API_TOKEN|ACCESS_TOKEN|SECRET|PASSWORD|TOKEN)", re.I)
 PARSER_NOTICE = (
-    "pypdf text extraction only: no OCR, figure interpretation, table reconstruction, "
-    "or faithful mathematical layout extraction. Image-only PDFs require the explicitly configured MinerU parser."
+    "MinerU is the only PDF preprocessing path. Readiness checks package availability "
+    "and the Crafter entrypoint, not model weights, backend compatibility, or an actual PDF parse. "
+    "Independent Crafter figure analysis is disabled for this single-model profile."
 )
 EXCLUDED_PARTS = {".git", ".venv", "venv", "env", "__pycache__", "node_modules"}
 IMPLEMENTATION_SUFFIXES = {".py", ".pyx", ".js", ".mjs", ".cjs", ".ts", ".tsx", ".jsx",
@@ -108,42 +109,6 @@ def isolate_runtime(work):
             os.environ.pop(name, None)
 
 
-def _heading(line):
-    line = line.strip()
-    if len(line) > 100:
-        return False
-    return bool(re.fullmatch(
-        r"(?:\d+(?:\.\d+)*[.\s]+)?(?:abstract|introduction|related work|background|"
-        r"method(?:s|ology)?|approach|experiments?|results|discussion|conclusions?|"
-        r"references|bibliography|appendix(?:\s+[A-Z])?)(?:\s*[:.])?", line, re.I))
-
-
-def text_pages_to_content(pages):
-    """Use the actual nested content shape consumed by PartitionAgent."""
-    content = []
-    for text in pages:
-        items, paragraph = [], []
-
-        def flush():
-            if paragraph:
-                items.append({"type": "paragraph", "content": {"paragraph_content": [
-                    {"type": "text", "content": "\n".join(paragraph)}]}})
-                paragraph.clear()
-
-        for line in text.splitlines():
-            if _heading(line):
-                flush()
-                items.append({"type": "title", "content": {"level": 1, "title_content": [
-                    {"type": "text", "content": line.strip()}]}})
-            elif not line.strip():
-                flush()
-            else:
-                paragraph.append(line.rstrip())
-        flush()
-        content.append(items)
-    return content
-
-
 def validate_content_list(value):
     if not isinstance(value, list) or not value:
         raise AdapterError("The parser produced no page content.")
@@ -181,8 +146,8 @@ def safe_tree_files(root):
 
 
 def preprocess(args):
-    # A parser does not need model access. Remove credentials before importing
-    # PDF libraries or creating parser subprocesses.
+    # The parsing service is team configured. Remove the task's model credential
+    # before creating the MinerU subprocess.
     drop_credentials()
     locations = task_paths()
     work = locations["work"]
@@ -191,50 +156,37 @@ def preprocess(args):
     parsed = work / "parsed"
     parsed.mkdir(exist_ok=True)
     (parsed / "images").mkdir(exist_ok=True)
-    if args.parser == "pypdf":
-        from pypdf import PdfReader
-        emit("preprocessing", parser="pypdf", limitations=PARSER_NOTICE)
-        try:
-            reader = PdfReader(str(locations["input"]), strict=False)
-            if reader.is_encrypted:
-                raise AdapterError("Encrypted PDFs are not supported; upload an unlocked PDF.")
-            pages = [page.extract_text() or "" for page in reader.pages]
-        except AdapterError:
-            raise
-        except Exception as error:
-            raise AdapterError("The PDF could not be read by pypdf. Upload a readable, unlocked PDF.") from error
-        if not any(text.strip() for text in pages):
-            raise AdapterError("This PDF has no extractable text. Scanned/image-only papers require an explicitly configured OCR/MinerU parser.")
-        content = validate_content_list(text_pages_to_content(pages))
-        (parsed / "paper_content_list_v2.json").write_text(json.dumps(content, ensure_ascii=False, indent=2), encoding="utf8")
-        details = {"parser": "pypdf", "pages": len(pages), "limitations": PARSER_NOTICE}
-    else:
-        command = [sys.executable, "-B", "-m", "mineru.cli.client", "-p", str(locations["input"]),
-                   "-o", str(work / "mineru"), "-b", args.mineru_backend, "-m", "auto"]
-        if args.mineru_source:
-            command += ["--source", args.mineru_source]
-        if args.mineru_url:
-            command += ["-u", args.mineru_url]
-        if args.mineru_backend.endswith("http-client") and not args.mineru_url:
-            raise AdapterError("A team-configured --mineru-url is required for the selected HTTP parser backend.")
-        emit("preprocessing", parser="mineru", backend=args.mineru_backend)
-        completed = subprocess.run(command, env=strip_credentials(os.environ), check=False)
-        if completed.returncode:
-            raise AdapterError(f"MinerU exited with code {completed.returncode}.")
-        candidates = sorted((work / "mineru").rglob("*_content_list_v2.json"))
-        if len(candidates) != 1:
-            raise AdapterError("MinerU did not produce exactly one v2 content list. Check its retained log; MinerU may log parser errors without a nonzero exit.")
-        source = candidates[0]
+    command = [sys.executable, "-B", "-m", "mineru.cli.client", "-p", str(locations["input"]),
+               "-o", str(work / "mineru"), "-b", args.mineru_backend, "-m", "auto"]
+    if args.mineru_source:
+        command += ["--source", args.mineru_source]
+    if args.mineru_url:
+        command += ["-u", args.mineru_url]
+    if args.mineru_backend.endswith("http-client") and not args.mineru_url:
+        raise AdapterError("A team-configured --mineru-url is required for the selected HTTP parser backend.")
+    emit("preprocessing", parser="mineru", backend=args.mineru_backend)
+    completed = subprocess.run(command, env=strip_credentials(os.environ), check=False)
+    if completed.returncode:
+        raise AdapterError(f"MinerU exited with code {completed.returncode}.")
+    candidates = sorted((work / "mineru").rglob("*_content_list_v2.json"))
+    if len(candidates) != 1:
+        raise AdapterError("MinerU did not produce exactly one v2 content list. Check its retained log; MinerU may log parser errors without a nonzero exit.")
+    source = candidates[0]
+    if source.is_symlink() or source.stat().st_nlink != 1:
+        raise AdapterError("MinerU content output must be a regular task-local file.")
+    try:
         content = validate_content_list(json.loads(source.read_text(encoding="utf8")))
-        (parsed / "paper_content_list_v2.json").write_text(json.dumps(content, ensure_ascii=False, indent=2), encoding="utf8")
-        image_dir = source.parent / "images"
-        if image_dir.exists():
-            for relative, candidate in safe_tree_files(image_dir):
-                destination = parsed / "images" / relative
-                destination.parent.mkdir(parents=True, exist_ok=True)
-                shutil.copyfile(candidate, destination)
-        details = {"parser": "mineru", "pages": len(content), "backend": args.mineru_backend,
-                   "limitations": "Parser output is unverified scientific source extraction; figure analysis remains disabled for the single-model web interface."}
+    except (OSError, ValueError) as error:
+        raise AdapterError("MinerU produced unreadable or invalid JSON content output.") from error
+    (parsed / "paper_content_list_v2.json").write_text(json.dumps(content, ensure_ascii=False, indent=2), encoding="utf8")
+    image_dir = source.parent / "images"
+    if image_dir.exists():
+        for relative, candidate in safe_tree_files(image_dir):
+            destination = parsed / "images" / relative
+            destination.parent.mkdir(parents=True, exist_ok=True)
+            shutil.copyfile(candidate, destination)
+    details = {"parser": "mineru", "pages": len(content), "backend": args.mineru_backend,
+               "limitations": "Parser extraction is not a scientific correctness guarantee; independent Crafter figure analysis remains disabled for the single-model web interface."}
     (work / "preprocessing.json").write_text(json.dumps(details, ensure_ascii=False, indent=2), encoding="utf8")
     emit("preprocessing_complete", **details)
 
@@ -476,7 +428,7 @@ def check(args):
     drop_credentials()
     root = repo_path(args.repo)
     dependencies = {name: importlib.util.find_spec(name) is not None for name in
-                    ["pypdf", "openai", "anthropic", "yaml", "mcp", "aiohttp"]}
+                    ["mineru", "openai", "anthropic", "yaml", "mcp", "aiohttp"]}
     compatible = False
     incompatibility = None
     if all(dependencies.values()):
@@ -496,7 +448,8 @@ def check(args):
             incompatibility = f"The checkout could not be imported ({type(error).__name__}); check its runtime dependencies."
     result = {"ready": all(dependencies.values()) and compatible, "repo": str(root), "entrypoint": "src.main:main",
               "dependencies": dependencies, "python": sys.version.split()[0],
-              "capabilities": {"pdf_text": True, "mineru_optional": importlib.util.find_spec("mineru") is not None,
+              "parser": "mineru", "parser_models_verified": False,
+              "capabilities": {"mineru": dependencies["mineru"], "parser_models_verified": False,
                 "openai_compatible": True, "debug_tool_bridge": True, "figure_analysis": False,
                 "model_requests_performed": False}, "entrypoint_compatible": compatible,
               "error": incompatibility, "limitations": PARSER_NOTICE}
@@ -513,7 +466,7 @@ def argument_parser():
         sub = subparsers.add_parser(name)
         sub.add_argument("--repo")
         if name == "preprocess":
-            sub.add_argument("--parser", choices=["pypdf", "mineru"], default="pypdf")
+            sub.add_argument("--parser", choices=["mineru"], default="mineru")
             sub.add_argument("--mineru-backend", choices=["hybrid-auto-engine", "vlm-auto-engine", "hybrid-http-client", "vlm-http-client"], default="hybrid-auto-engine")
             sub.add_argument("--mineru-url")
             sub.add_argument("--mineru-source", choices=["huggingface", "modelscope", "local"])

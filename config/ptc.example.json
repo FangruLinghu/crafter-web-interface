@@ -6,7 +6,7 @@
     "repo": "~/GitHub/ptc_agent_merged",
     "condaEnv": "ptc",
     "condaExecutable": "conda",
-    "parser": "pypdf",
+    "parser": "mineru",
     "skipDebug": false
   },
   "localModels": []

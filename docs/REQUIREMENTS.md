@@ -4,7 +4,7 @@ The following identifiers track application scope and implementation coverage. T
 
 | ID | Implementation | Verification and limits |
 | --- | --- | --- |
-| FR-01 | `validation.js`: one PDF per task; 75,000,000-byte maximum; header, trailer, and cross-reference checks | Upload boundaries and corrupt/non-PDF inputs are tested; deeper parsing belongs to the configured processor |
+| FR-01 | `validation.js`: one PDF per task; 75,000,000-byte maximum; header, trailer, and cross-reference checks; MinerU preprocessing | Upload boundaries and corrupt/non-PDF inputs tested; actual MinerU model execution and real-paper output remain unvalidated |
 | FR-02 | `config.js`, `validation.js`, `runner.js`, and PTC adapters: remote API settings and administrator-managed local models | Repository import and a small remote connection request checked; full paper execution and actual vLLM acceptance pending |
 | FR-03 | `scheduler.js` and `runner.js`: independent directories, FIFO queue, runtime limit, and process-group termination | Controlled queue, timeout, descendant termination, and deletion races tested |
 | FR-04 | Five task states; successful exit and required published outputs before Completed | Success, failure, and missing expected outputs tested; completion does not certify scientific correctness |
@@ -33,8 +33,8 @@ The following identifiers track application scope and implementation coverage. T
 
 ## Integration boundaries
 
-The default PTC parser extracts selectable text using pypdf and converts it to the structure required by Crafter. OCR, faithful formula/table reconstruction, and figure interpretation are not supplied by that profile. The real MinerU branch remains unvalidated; figure analysis is explicitly disabled in the single-model profile. The engine's debug stage remains enabled unless explicitly configured otherwise. Full paper-to-code and actual vLLM execution remain acceptance work.
+MinerU is the only paper preprocessor. Its model assets, hardware/service configuration, real-paper v2 output, and referenced images still require validation with the actual engine. There is no alternate parser fallback. The optional figure-analysis stage is disabled in the current single-model profile; the debug stage remains enabled unless explicitly configured otherwise. Full paper-to-code and actual vLLM execution remain acceptance work.
 
 Implementation defaults are one hour of runtime, 2 GB per task, 10 GB total application data, and 1 GB minimum free space. These are configurable deployment choices, not fixed requirement values. Unfinished tasks do not resume automatically after restart. A withdrawn task with incomplete cleanup remains Failed and excluded from execution; retained papers and results are not automatically deleted to free space.
 
-See [Crafter integration](CRAFTER_INTEGRATION.md), [Testing and acceptance](TESTING.md), and the [API reference](API.md).
+The prioritized [README TODO list](../README.md#todo--deployment-acceptance) records remaining work and completion criteria. See also [Crafter integration](CRAFTER_INTEGRATION.md), [Testing and acceptance](TESTING.md), and the [API reference](API.md).

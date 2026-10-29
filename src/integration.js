@@ -14,7 +14,7 @@ export async function checkIntegration(config) {
     });
     const result = JSON.parse(stdout.trim());
     if (!result.ready) throw new Error('The adapter reported missing dependencies or an incompatible entry point.');
-    if (config.ptc.parser === 'mineru' && !result.capabilities?.mineru_optional) throw new Error('MinerU is not installed in the selected environment.');
+    if (result.dependencies?.mineru !== true || result.capabilities?.mineru !== true || result.parser !== 'mineru') throw new Error('The adapter must provide installed MinerU preprocessing without a fallback parser.');
     config.integrationStatus = { ready: true, details: result };
   } catch {
     config.integrationStatus = { ready: false, message: 'Crafter could not be loaded. Check the repository path and its conda environment, then restart the server. See the integration check command in the README.' };

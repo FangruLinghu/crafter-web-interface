@@ -25,8 +25,8 @@ export function normalizeConfig(values = {}) {
     const repo = resolve(profile.repo.startsWith('~/') ? resolve(homedir(), profile.repo.slice(2)) : resolve(PROJECT_ROOT, profile.repo));
     const condaEnv = profile.condaEnv || 'ptc';
     if (!/^[A-Za-z0-9_.-]+$/.test(condaEnv)) throw new Error('Invalid Crafter conda environment name.');
-    const parser = profile.parser || 'pypdf';
-    if (!['pypdf', 'mineru'].includes(parser)) throw new Error('Choose pypdf or mineru preprocessing.');
+    const parser = profile.parser === undefined ? 'mineru' : profile.parser;
+    if (parser !== 'mineru') throw new Error('MinerU is the only supported paper preprocessing parser.');
     const command = profile.condaExecutable || 'conda';
     const adapter = resolve(PROJECT_ROOT, 'adapters/ptc_adapter.py');
     const prefix = ['run', '--no-capture-output', '-n', condaEnv, 'python', '-B', adapter];
@@ -94,7 +94,7 @@ export function publicConfig(config) {
   const ready = Boolean(config.preprocess && config.crafter) && (!config.ptc || config.integrationStatus?.ready === true);
   const message = config.ptc
     ? config.integrationStatus?.ready
-      ? `Crafter repository is connected. ${config.ptc.parser === 'pypdf' ? 'PDFs use text extraction; scanned pages require an OCR parser. Figure analysis is disabled in this single-model profile.' : 'PDFs use MinerU preprocessing. Figure analysis is disabled in this single-model profile.'}`
+      ? 'Crafter repository is connected and real MinerU preprocessing is configured. Parser model files and an actual parser run have not yet been verified. Independent figure analysis is disabled in this single-model profile.'
       : config.integrationStatus?.message || 'Checking the Crafter repository and Python environment.'
     : config.demo ? 'Demo adapter: tests the workflow without calling a model or implementing a research paper.' : ready ? 'Crafter commands are configured. Live model and generation acceptance still need to be verified.' : 'Configure paper preprocessing and the real Crafter command in the server settings before submitting.';
   return {

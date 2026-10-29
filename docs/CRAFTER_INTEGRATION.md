@@ -4,6 +4,8 @@
 
 The PTC adapter invokes the external repository's existing `src.main:main` entry point without modifying that checkout. Keep the engine repository and its Python dependencies in a separate conda environment.
 
+Prepare the engine dependencies and the actual MinerU runtime and model assets in that environment. MinerU is the only supported paper preprocessor; no alternate parser is used. A verified, reproducible dependency and model-asset installation procedure remains deployment work.
+
 Copy `config/ptc.example.json` to `config/server.json`, then configure:
 
 | Field | Meaning |
@@ -11,7 +13,7 @@ Copy `config/ptc.example.json` to `config/server.json`, then configure:
 | `ptc.repo` | Path to the external Crafter/PTC repository |
 | `ptc.condaEnv` | Conda environment containing its dependencies |
 | `ptc.condaExecutable` | Conda executable name or deployment-specific path |
-| `ptc.parser` | `pypdf` for text extraction, or explicitly selected `mineru` |
+| `ptc.parser` | `mineru`; the required paper-preprocessing implementation |
 | `ptc.skipDebug` | Whether to skip the original debug stage; defaults to false |
 
 Run from the web repository root:
@@ -21,13 +23,13 @@ conda run -n crafter-web npm run check:ptc
 conda run -n crafter-web npm start
 ```
 
-The check imports the configured engine entry point and verifies its interface and dependencies. It makes no model requests. Startup performs the same check and rejects submissions when integration is unavailable.
+The check imports the configured engine entry point and checks its interface and importable dependencies. It makes no model requests and does not run MinerU with model assets. Startup rejects unavailable integration, but successful import checks alone do not prove that parser hardware, services, model files, or complete execution are ready.
 
 In the interface, select Remote API and enter an HTTPS base URL, model name, and API key. Keys are not prefilled from server credentials, and remote reruns require re-entry. Configure `localModels` to enable a real vLLM endpoint; the default list is empty. Use `apiKeyEnv` to reference server-managed credentials for a local service.
 
 ## Processing and publication
 
-1. Parsing reads the uploaded PDF into a task-private working directory. The default pypdf profile extracts selectable text and converts it to the nested page/item structure consumed by the existing PartitionAgent.
+1. Parsing invokes the configured MinerU path for the uploaded PDF in a task-private directory. The adapter requires the resulting v2 page/item structure and referenced images consumed by the existing PartitionAgent. Real-paper output and asset/hardware execution still require acceptance validation.
 2. Running Crafter supplies the selected backend through in-memory configuration and invokes the existing CLI. Keys are passed in the process environment rather than generated YAML or JSON files.
 3. Original partition, gap, planning, generation, and debug components remain in the engine checkout. A protocol bridge translates Anthropic-style debug tool messages into OpenAI-compatible requests and adapts supported token-limit parameters.
 4. Engine memory, usage records, parser data, and temporary files remain under private `work/`. Generated-code subprocesses receive an environment with provider credentials removed. Wrapped background writers are awaited before publication.
@@ -39,15 +41,14 @@ The adapter does not provide operating-system isolation for the engine's debug t
 
 ## Parser and model limitations
 
-- **pypdf:** extracts selectable text only. It does not perform OCR, interpret figures, reconstruct tables, or preserve formulas faithfully. Image-only and encrypted inputs fail with an explanation.
-- **MinerU:** the optional branch is available as explicit configuration, but execution with actual model assets and target hardware has not been validated. There is no silent fallback to pypdf.
-- **Figure analysis:** disabled using the engine's existing `--no-vlm` option in the single-model profile. The separate VLM stage would require additional configuration and credentials.
+- **MinerU:** required, with no alternate parser fallback. Actual model assets, supported hardware/service execution, and real-paper v2/image output have not been validated. A startup dependency check cannot substitute for these checks.
+- **Figure analysis:** disabled using the engine's existing `--no-vlm` option in the single-model profile. Enabling the optional VLM stage requires separate configuration and credentials; it is not a required application workflow.
 - **Debug:** enabled by default. Set `skipDebug: true` only as an explicit deployment choice. Any package installation attempted by the existing debug implementation uses its selected conda Python.
 - **Costs:** arbitrary provider pricing is unknown. Compatibility counters and unknown-price manifests are not billing estimates and do not imply a free run.
 
 ## Generic command integration
 
-For a different Crafter entry point, copy `config/server.example.json` and configure separate `preprocess` and `crafter` command/argument arrays. Supply deployment-specific wrapper paths and working directories. Commands run without shell-string interpolation.
+For a different Crafter entry point, copy `config/server.example.json` and configure separate `preprocess` and `crafter` command/argument arrays. The preprocessing wrapper must invoke MinerU and validate its required v2 output and images. Supply deployment-specific wrapper paths and working directories. Commands run without shell-string interpolation.
 
 Arguments can use `{input}`, `{work}`, `{output}`, `{model}`, `{baseUrl}`, and `{taskId}`; `{node}` selects the current Node executable when used as the command. Set `expectedOutputs` to relative file paths required for success. An empty list still requires at least one publishable file.
 
@@ -76,4 +77,4 @@ Remote endpoints require HTTPS by default. `remoteAllowedHosts` can restrict pro
 
 ## Acceptance status
 
-Repository import, actual PDF text extraction, compatibility with the real PartitionAgent structure, offline adapter tests, and a small live remote-model connectivity request have been checked. A full paper-to-code run, actual vLLM execution, real MinerU execution, Linux forced-interruption recovery, and scientific correctness remain unvalidated. See [Testing and acceptance](TESTING.md).
+The web suite passed 36 tests in a fresh Node.js 22.23.4 environment. Earlier repository imports, controlled adapter tests, and a small remote-model connectivity request do not establish working MinerU execution. Actual MinerU model execution, complete paper-to-code generation, actual vLLM access, target-Linux forced-interruption recovery, and responsiveness under load remain unvalidated. See the [README TODO list](../README.md#todo--deployment-acceptance) and [Testing and acceptance](TESTING.md).
