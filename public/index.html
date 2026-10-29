@@ -1,0 +1,85 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="color-scheme" content="light">
+    <meta name="description" content="Submit papers, monitor Crafter runs, and manage generated results in your browser.">
+    <title>Crafter · Research workspace</title>
+    <link rel="stylesheet" href="/styles.css">
+    <script src="/app.js" defer></script>
+  </head>
+  <body>
+    <a class="skip-link" href="#main">Skip to workspace</a>
+    <header class="app-header">
+      <a class="brand" href="/" aria-label="Crafter home"><span class="brand-mark" aria-hidden="true">c<span>·</span></span><span>crafter<span class="brand-subtitle">Research workspace</span></span></a>
+      <div class="header-right"><span class="lab-tag"><span aria-hidden="true">◉</span> Shared lab</span><span id="connection" class="connection"><span class="connection-dot" aria-hidden="true"></span><span id="connection-text">Connecting</span></span></div>
+    </header>
+
+    <main id="main" class="workspace">
+      <section class="page-intro" aria-labelledby="page-title">
+        <div><p class="eyebrow">PAPER TO CODE</p><h1 id="page-title">Turn research into code.</h1><p class="intro-copy">Submit papers, follow each run, and revisit every result.</p></div>
+        <button class="button primary new-task-button" type="button" data-new-task><span class="plus" aria-hidden="true">+</span> New task</button>
+      </section>
+
+      <div id="integration-banner" class="notice integration-notice" role="status" hidden></div>
+      <div id="page-error" class="notice error-notice" role="alert" hidden></div>
+
+      <section class="stats" aria-label="Task overview">
+        <div class="stat"><span class="stat-label">All tasks</span><span id="stat-total" class="stat-value">—</span><span class="stat-footnote">Saved in shared history</span></div>
+        <div class="stat"><span class="stat-label"><span class="tiny-dot queued" aria-hidden="true"></span>Queued</span><span id="stat-queued" class="stat-value">—</span><span class="stat-footnote">First in, first out</span></div>
+        <div class="stat"><span class="stat-label"><span class="tiny-dot running" aria-hidden="true"></span>Running</span><span id="stat-running" class="stat-value">—</span><span class="stat-footnote">One task at a time</span></div>
+        <div class="stat"><span class="stat-label"><span class="tiny-dot completed" aria-hidden="true"></span>Completed</span><span id="stat-completed" class="stat-value">—</span><span class="stat-footnote">Results ready to review</span></div>
+      </section>
+
+      <div class="workbench">
+        <section class="history panel" aria-labelledby="history-title">
+          <div class="panel-heading"><div><h2 id="history-title">Task history <span id="history-count" class="count-pill">0</span></h2><p>All submissions, shared access</p></div><button id="refresh-button" class="icon-button" type="button" title="Refresh tasks" aria-label="Refresh tasks">↻</button></div>
+          <div class="history-controls"><label class="search-field"><span aria-hidden="true">⌕</span><input id="search" type="search" placeholder="Search paper or task ID" aria-label="Search paper or task ID"></label><label class="sr-only" for="status-filter">Filter by status</label><select id="status-filter"><option value="all">All statuses</option><option value="Queued">Queued</option><option value="active">Active</option><option value="Completed">Completed</option><option value="Failed">Failed</option></select></div>
+          <div id="task-list" class="task-list" aria-label="Task list" aria-busy="true"><p class="list-message">Loading tasks…</p></div>
+          <div class="history-footer"><span class="tiny-dot completed" aria-hidden="true"></span><span>Updates every <span id="poll-seconds">2</span> seconds</span></div>
+        </section>
+
+        <section id="detail" class="detail panel" aria-label="Task details">
+          <div id="detail-empty" class="detail-empty">
+            <div class="paper-illustration" aria-hidden="true"><div class="paper-lines"><i></i><i></i><i></i><i></i></div><span class="code-tile">&lt;/&gt;</span><span class="paper-spark">✧</span></div>
+            <span class="eyebrow">YOUR NEXT EXPERIMENT</span><h2>Start with a paper</h2><p>Upload a PDF and choose a model. Crafter will process your paper and generate code.<br>Your run history, logs, and results will stay here.</p>
+            <button class="button primary" type="button" data-new-task>Create your first task <span aria-hidden="true">↗</span></button>
+            <div class="empty-workflow" aria-label="Task workflow"><span>Upload a paper</span><i aria-hidden="true">→</i><span>Parse and generate</span><i aria-hidden="true">→</i><span>Review results</span></div>
+          </div>
+
+          <div id="task-detail" hidden>
+            <div class="detail-heading"><div class="detail-title-block"><p class="eyebrow">TASK DETAILS</p><h2 id="task-title"></h2><div class="task-subline"><span id="task-status"></span><span id="task-id" class="mono"></span></div></div><div class="detail-actions"><button id="rerun-button" class="button secondary small" type="button">↻ Rerun</button><button id="delete-button" class="icon-button delete-button" type="button" aria-label="Delete task" title="Delete task">⌫</button></div></div>
+            <div id="task-notice" class="notice task-notice" role="status" hidden></div>
+            <dl class="task-metadata"><div><dt>Model</dt><dd id="task-model"></dd></div><div><dt>Access mode</dt><dd id="task-mode"></dd></div><div><dt>Submitted</dt><dd id="task-created"></dd></div><div><dt>Run time</dt><dd id="task-duration"></dd></div></dl>
+            <div class="paper-row"><span class="pdf-icon" aria-hidden="true">PDF</span><div><strong id="paper-name"></strong><span id="paper-size"></span></div><div class="paper-links"><a id="view-pdf" target="_blank" rel="noopener">View PDF ↗</a><a id="download-pdf">Download</a></div></div>
+            <div class="detail-tabs" role="tablist" aria-label="Task content"><button id="tab-logs" class="detail-tab selected" type="button" role="tab" aria-selected="true" aria-controls="logs-panel" tabindex="0">Execution logs<span id="live-tag" class="live-tag" hidden>LIVE</span></button><button id="tab-outputs" class="detail-tab" type="button" role="tab" aria-selected="false" aria-controls="outputs-panel" tabindex="-1">Output files <span id="output-count" class="count-pill">0</span></button></div>
+            <div id="logs-panel" class="tab-panel" role="tabpanel" aria-labelledby="tab-logs"><div class="logs-toolbar"><span id="log-status">Waiting for logs</span><div><label class="follow-label"><input id="follow-logs" type="checkbox" checked> Follow latest</label><button id="download-logs" class="text-button" type="button">Download logs ↓</button></div></div><p id="log-truncated" class="log-truncated" hidden>The log retention limit was reached. Older entries have been removed.</p><pre id="logs" class="logs" tabindex="0" aria-label="Execution logs">Execution output will appear here when the task starts.</pre></div>
+            <div id="outputs-panel" class="tab-panel" role="tabpanel" aria-labelledby="tab-outputs" hidden><div class="outputs-toolbar"><p id="outputs-description">Output files are available after execution ends.</p><a id="download-zip" class="button secondary small" hidden>Download ZIP ↓</a></div><div id="output-files" class="output-files"></div><p class="output-footnote">Only published outputs are shown. Text previews are read-only. A completed task does not certify the scientific correctness of generated code.</p></div>
+          </div>
+        </section>
+      </div>
+      <footer class="page-footer"><span>CRAFTER WEB INTERFACE <span class="footer-separator">/</span> GROUP 8</span><span>For restricted course and lab environments</span></footer>
+    </main>
+
+    <dialog id="task-dialog" class="modal task-modal" aria-labelledby="form-title">
+      <form id="task-form" enctype="multipart/form-data">
+        <div class="modal-heading"><div><p class="eyebrow" id="form-eyebrow">NEW EXPERIMENT</p><h2 id="form-title">New task</h2></div><button class="icon-button" type="button" data-close-task aria-label="Close">×</button></div>
+        <p id="form-description" class="modal-description">Submit a paper to start an independent code generation task.</p>
+        <div id="form-error" class="notice error-notice" role="alert" hidden></div>
+        <div id="upload-field"><label class="field-label" for="paper">Research paper <span>PDF · Up to <span id="upload-limit">75 MB</span></span></label><label id="upload-zone" class="upload-zone" for="paper"><span class="upload-symbol" aria-hidden="true">↥</span><strong id="upload-label">Choose a PDF</strong><span id="upload-description">Click to browse, or drop a file here</span><input id="paper" name="paper" type="file" accept="application/pdf,.pdf" required></label></div>
+        <div id="rerun-paper" class="rerun-paper" hidden></div>
+        <fieldset class="mode-fieldset"><legend class="field-label">Model access</legend><div class="mode-picker"><label><input type="radio" name="mode" value="remote" checked><span><strong>Remote API</strong><small>OpenAI-compatible</small></span></label><label><input type="radio" name="mode" value="local"><span><strong>Local model</strong><small>Lab-managed vLLM</small></span></label></div></fieldset>
+        <div id="remote-fields" class="field-stack"><label class="field-label" for="base-url">API Base URL</label><input id="base-url" name="baseUrl" type="url" placeholder="https://api.example.com/v1" autocomplete="off" maxlength="2048" required><label class="field-label" for="model">Model name</label><input id="model" name="model" type="text" placeholder="Enter a model supported by your service" autocomplete="off" maxlength="256" required><label class="field-label" for="api-key">API key <span>For this task only</span></label><input id="api-key" name="apiKey" type="password" placeholder="Enter your API key" autocomplete="off" spellcheck="false" maxlength="4096" required><p class="field-help">Keys stay in server memory only while a task is queued or running. They are not saved in history, logs, or browser storage. Re-enter your key for each rerun.</p></div>
+        <div id="local-fields" class="field-stack" hidden><label class="field-label" for="local-model">Lab model</label><select id="local-model" name="localModelId" disabled></select><p id="local-help" class="field-help">Models and service endpoints are configured by your lab administrator.</p></div>
+        <div class="form-note"><span aria-hidden="true">◷</span><p>Tasks run one at a time. Queued tasks can be withdrawn. Parsing and generation cannot be cancelled manually; the server stops tasks that exceed the runtime limit.</p></div>
+        <div class="modal-footer"><button class="button secondary" type="button" data-close-task>Cancel</button><button id="submit-task" class="button primary" type="submit">Submit task <span aria-hidden="true">↗</span></button></div>
+      </form>
+    </dialog>
+
+    <dialog id="delete-dialog" class="modal confirm-modal" aria-labelledby="delete-title"><form id="delete-form"><div class="modal-heading"><h2 id="delete-title">Delete task?</h2><button class="icon-button" type="button" data-close-delete aria-label="Close">×</button></div><p id="delete-description"></p><p class="delete-paper" id="delete-paper"></p><div id="delete-error" class="notice error-notice" role="alert" hidden></div><div class="modal-footer"><button class="button secondary" type="button" data-close-delete>Keep task</button><button id="confirm-delete" class="button danger" type="submit">Confirm deletion</button></div></form></dialog>
+
+    <dialog id="preview-dialog" class="modal preview-modal" aria-labelledby="preview-title"><div class="modal-heading"><div><p class="eyebrow">READ-ONLY PREVIEW</p><h2 id="preview-title">File preview</h2></div><button id="close-preview" class="icon-button" type="button" aria-label="Close preview">×</button></div><p id="preview-notice" class="field-help" hidden></p><pre id="preview-content" class="preview-content" tabindex="0"></pre></dialog>
+    <div id="toast" class="toast" role="status" hidden></div>
+  </body>
+</html>

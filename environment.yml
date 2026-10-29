@@ -1,0 +1,5 @@
+name: crafter-web
+channels:
+  - conda-forge
+dependencies:
+  - nodejs>=22.13,<23

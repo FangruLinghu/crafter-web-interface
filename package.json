@@ -1,0 +1,15 @@
+{
+  "name": "crafter-web-interface",
+  "version": "0.2.0",
+  "private": true,
+  "type": "module",
+  "description": "Group 8 Crafter Web Interface course prototype",
+  "engines": { "node": ">=22.13.0" },
+  "scripts": {
+    "start": "node src/server.js",
+    "check:ptc": "node scripts/check-ptc.mjs",
+    "test:ptc": "conda run --no-capture-output -n ptc python -B -m unittest discover -s test -p 'test_ptc*.py' -v",
+    "test": "node --test --test-concurrency=1 test/*.test.js test/fixtures/*.test.mjs",
+    "demo": "CRAFTER_CONFIG=config/demo.json node src/server.js"
+  }
+}
