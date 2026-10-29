@@ -64,7 +64,12 @@ These changes are on the `daiheng-dev` branch. They change only the interface an
 - **Demo banner:** The demo notice was two sentences with the same meaning. It is now one sentence. The text changed in `src/config.js` and in the fallback in `public/app.js`.
 - **Delete button:** The ⌫ icon is now a labeled button. It reads **Delete**, or **Withdraw** for a queued task, and has a red outline. The tooltip still explains why the button is disabled during parsing or generation.
 
-Verification: all 37 web tests pass. Desktop and 375px phone layouts were checked in the browser in demo mode, with no horizontal overflow or clipped controls. The Failed count and the Withdraw label were not observed with actual failed or queued tasks.
+- **Progress stepper:** Task details now show a four-step bar: Queued → Parsing paper → Generating code → Completed. Completed steps show a check mark. The current step is highlighted and labeled *In progress*, or *Waiting* while queued. A failed task shows a red ✕ on the stage where it stopped, labeled *Stopped here*.
+  - To support this, the task database has a new nullable `failedStage` column. It records `Queued`, `Parsing`, or `Running Crafter`. `TaskStore.update` sets it automatically when a task changes to `Failed`, so every failure path records it, including timeouts, storage limits, server interruptions, and withdrawals. Later updates do not overwrite it.
+  - The database schema version is now 2. Version 1 databases gain the column automatically at startup. Tasks that failed before the upgrade have no recorded stage, so the stepper marks the last step *Failed* with the note *Stage not recorded*.
+  - Code: `src/store.js` (column, migration, recording), `public/app.js` (`stepStates` and `renderSteps`), `public/index.html` (`#task-steps`), and `public/styles.css` (`.task-steps`). The pulse animation on the current step stops when the system's reduced-motion setting is on.
+
+Verification: all 38 web tests pass. This includes a new test for `failedStage` recording and the version 1 to version 2 upgrade. Desktop and 375px phone layouts were checked in the browser in demo mode, with no horizontal overflow or clipped controls. A demo configuration with a deliberately failing generation step was used to check the stepper at each stage: queued, running, failed during generation, and completed. That run also confirmed the Failed count and the Withdraw label on a queued task.
 
 ## Current status and limits
 
