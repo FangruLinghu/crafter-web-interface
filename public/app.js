@@ -141,6 +141,7 @@
     $('stat-queued').textContent = String(state.tasks.filter((task) => task.status === 'Queued').length);
     $('stat-running').textContent = String(state.tasks.filter((task) => activeStatuses.has(task.status)).length);
     $('stat-completed').textContent = String(state.tasks.filter((task) => task.status === 'Completed').length);
+    $('stat-failed').textContent = String(state.tasks.filter((task) => task.status === 'Failed').length);
     const signature = JSON.stringify([state.selectedId, query, filter, filtered.map(({ id, paperName, status, createdAt, model }) => [id, paperName, status, createdAt, model])]);
     if (signature === state.listSignature) return;
     state.listSignature = signature;
@@ -200,7 +201,7 @@
     const terminal = finalStatuses.has(task.status);
     $('delete-button').disabled = active;
     $('delete-button').title = active ? 'Tasks cannot be deleted during parsing or generation' : task.status === 'Queued' ? 'Withdraw and delete queued task' : 'Delete task';
-    $('delete-button').setAttribute('aria-label', $('delete-button').title);
+    $('delete-button').textContent = task.status === 'Queued' ? 'Withdraw' : 'Delete';
     $('live-tag').hidden = !active;
     $('log-status').textContent = active ? 'Receiving execution output' : task.status === 'Queued' ? 'Waiting for the task to start' : 'Retained execution logs';
     const message = task.error || task.waitReason || (task.status === 'Queued' ? 'This task is queued. It will start when earlier tasks finish and resources are available.' : '');
@@ -584,7 +585,7 @@
       state.config = await api('/api/config');
       const { integration = {}, limits = {}, localModels = [] } = state.config;
       const integrationMessage = integration.demo
-        ? `Demo mode: test scripts verify the workflow without calling real Crafter.${integration.message ? ` ${integration.message}` : ''}`
+        ? integration.message || 'Demo mode: test scripts run the workflow without calling a model or the real Crafter engine, so no paper is implemented.'
         : integration.adapter === 'ptc' ? integration.message
         : !integration.ready ? integration.message || 'Crafter is not configured. Ask your administrator to connect the real preprocessing and Crafter scripts.' : '';
       notice('integration-banner', integrationMessage, `notice integration-notice${integration.demo ? ' demo' : ''}`);

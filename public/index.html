@@ -30,6 +30,7 @@
         <div class="stat"><span class="stat-label"><span class="tiny-dot queued" aria-hidden="true"></span>Queued</span><span id="stat-queued" class="stat-value">—</span><span class="stat-footnote">First in, first out</span></div>
         <div class="stat"><span class="stat-label"><span class="tiny-dot running" aria-hidden="true"></span>Running</span><span id="stat-running" class="stat-value">—</span><span class="stat-footnote">One task at a time</span></div>
         <div class="stat"><span class="stat-label"><span class="tiny-dot completed" aria-hidden="true"></span>Completed</span><span id="stat-completed" class="stat-value">—</span><span class="stat-footnote">Results ready to review</span></div>
+        <div class="stat"><span class="stat-label"><span class="tiny-dot failed" aria-hidden="true"></span>Failed</span><span id="stat-failed" class="stat-value">—</span><span class="stat-footnote">Check logs for the cause</span></div>
       </section>
 
       <div class="workbench">
@@ -49,7 +50,7 @@
           </div>
 
           <div id="task-detail" hidden>
-            <div class="detail-heading"><div class="detail-title-block"><p class="eyebrow">TASK DETAILS</p><h2 id="task-title"></h2><div class="task-subline"><span id="task-status"></span><span id="task-id" class="mono"></span></div></div><div class="detail-actions"><button id="rerun-button" class="button secondary small" type="button">↻ Rerun</button><button id="delete-button" class="icon-button delete-button" type="button" aria-label="Delete task" title="Delete task">⌫</button></div></div>
+            <div class="detail-heading"><div class="detail-title-block"><p class="eyebrow">TASK DETAILS</p><h2 id="task-title"></h2><div class="task-subline"><span id="task-status"></span><span id="task-id" class="mono"></span></div></div><div class="detail-actions"><button id="rerun-button" class="button secondary small" type="button">↻ Rerun</button><button id="delete-button" class="button secondary small delete-button" type="button" title="Delete task">Delete</button></div></div>
             <div id="task-notice" class="notice task-notice" role="status" hidden></div>
             <dl class="task-metadata"><div><dt>Model</dt><dd id="task-model"></dd></div><div><dt>Access mode</dt><dd id="task-mode"></dd></div><div><dt>Submitted</dt><dd id="task-created"></dd></div><div><dt>Run time</dt><dd id="task-duration"></dd></div></dl>
             <div class="paper-row"><span class="pdf-icon" aria-hidden="true">PDF</span><div><strong id="paper-name"></strong><span id="paper-size"></span></div><div class="paper-links"><a id="view-pdf" target="_blank" rel="noopener">View PDF ↗</a><a id="download-pdf">Download</a></div></div>

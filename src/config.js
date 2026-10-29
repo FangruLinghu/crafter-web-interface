@@ -96,7 +96,7 @@ export function publicConfig(config) {
     ? config.integrationStatus?.ready
       ? 'Crafter repository is connected and real MinerU preprocessing is configured. Parser model files and an actual parser run have not yet been verified. Independent figure analysis is disabled in this single-model profile.'
       : config.integrationStatus?.message || 'Checking the Crafter repository and Python environment.'
-    : config.demo ? 'Demo adapter: tests the workflow without calling a model or implementing a research paper.' : ready ? 'Crafter commands are configured. Live model and generation acceptance still need to be verified.' : 'Configure paper preprocessing and the real Crafter command in the server settings before submitting.';
+    : config.demo ? 'Demo mode: test scripts run the workflow without calling a model or the real Crafter engine, so no paper is implemented.' : ready ? 'Crafter commands are configured. Live model and generation acceptance still need to be verified.' : 'Configure paper preprocessing and the real Crafter command in the server settings before submitting.';
   return {
     localModels: config.localModels.map(({ id, label, model }) => ({ id, label: label || model, model })),
     limits: Object.fromEntries(['maxUploadBytes', 'taskTimeoutMs', 'maxTaskBytes', 'maxTotalBytes', 'minFreeBytes', 'logMaxBytes', 'pollIntervalMs'].map(key => [key, config[key]])),

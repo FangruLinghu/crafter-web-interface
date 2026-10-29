@@ -54,6 +54,18 @@ conda run -n crafter-web npm run demo
 
 Upload [examples/sample-paper.pdf](examples/sample-paper.pdf) and select the workflow demonstration model. This mode uses explicitly labeled test fixtures. It does not call a model, extract scientific content, or implement the paper. Demonstration data is kept separately under `var/demo`.
 
+## Interface readability updates
+
+These changes are on the `daiheng-dev` branch. They change only the interface and do not affect task execution.
+
+- **Text contrast:** 63 text colors in `public/styles.css` were darkened to meet the WCAG AA contrast ratio of 4.5:1. Each color keeps its original hue. Examples are task dates, metadata labels, inactive tabs, file sizes, help text, and status badges, which previously measured 2.0–3.2:1. `--muted` changed from `#7a8683` to `#5f6b68`. White text on dark buttons is unchanged.
+- **Font sizes:** The smallest text is now 11px. Previously, text was as small as 7px. Text set at 7–10px is now 11px, and text set at 11px is now 12px.
+- **Failed count:** The summary row has a fifth **Failed** card (`#stat-failed`) next to All, Queued, Running, and Completed. On screens 600px wide or narrower, **All tasks** spans the first row, and the remaining four cards form a 2×2 grid.
+- **Demo banner:** The demo notice was two sentences with the same meaning. It is now one sentence. The text changed in `src/config.js` and in the fallback in `public/app.js`.
+- **Delete button:** The ⌫ icon is now a labeled button. It reads **Delete**, or **Withdraw** for a queued task, and has a red outline. The tooltip still explains why the button is disabled during parsing or generation.
+
+Verification: all 37 web tests pass. Desktop and 375px phone layouts were checked in the browser in demo mode, with no horizontal overflow or clipped controls. The Failed count and the Withdraw label were not observed with actual failed or queued tasks.
+
 ## Current status and limits
 
 The application includes task management and an adapter to the existing PTC entry point. The web suite passed 37 tests in a fresh Node.js 22.23.4 environment, and the MinerU adapter suite passed 14 controlled tests. These checks do not verify actual MinerU model execution or a complete paper-to-code run.
