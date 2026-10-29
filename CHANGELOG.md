@@ -2,6 +2,11 @@
 
 ## Unreleased
 
+- Raise interface text contrast to WCAG AA (4.5:1) and set the minimum font size to 11px.
+- Add a Failed count to the task summary.
+- Reduce the demo banner to one sentence.
+- Replace the delete icon with a labeled Delete or Withdraw button.
+- Add a progress stepper to task details that marks the stage where a failed task stopped. This adds the `failedStage` column and database schema version 2, with automatic migration.
 - Require MinerU for paper preprocessing and remove alternate-parser fallback configuration.
 - Add a prioritized deployment and acceptance TODO list with requirement IDs and completion criteria.
 - Clarify the limits of offline tests and startup checks for real MinerU and engine execution.

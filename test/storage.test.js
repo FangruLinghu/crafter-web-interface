@@ -4,6 +4,7 @@ import { mkdtemp, writeFile, readFile, mkdir, symlink, link, readdir, rm, stat }
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { randomUUID } from 'node:crypto';
+import { DatabaseSync } from 'node:sqlite';
 import { TaskStore } from '../src/store.js';
 import { TaskFiles } from '../src/files.js';
 import { TaskLogger, redact } from '../src/logs.js';
@@ -44,6 +45,33 @@ test('SQLite persists only approved task metadata and keeps independent rerun re
   store.close();
   assert.equal((await stat(dbPath)).mode & 0o777, 0o600);
   for (const filename of await readdir(root)) assert.equal((await readFile(path.join(root, filename))).includes(Buffer.from('sk-never-persist')), false);
+});
+
+test('Failed tasks record the stage they stopped in, and version 1 databases gain the column', async t => {
+  const root = await temporary(t);
+  const legacyPath = path.join(root, 'legacy.db');
+  const legacy = new DatabaseSync(legacyPath);
+  legacy.exec(`CREATE TABLE tasks (id TEXT PRIMARY KEY, paperName TEXT NOT NULL, pdfBytes INTEGER NOT NULL, mode TEXT NOT NULL,
+    baseUrl TEXT NOT NULL, model TEXT NOT NULL, localModelId TEXT, status TEXT NOT NULL, createdAt TEXT NOT NULL, startedAt TEXT,
+    finishedAt TEXT, error TEXT, waitReason TEXT, rerunOf TEXT, withdrawn INTEGER NOT NULL DEFAULT 0, processGroupId INTEGER);
+    INSERT INTO tasks (id, paperName, pdfBytes, mode, baseUrl, model, status, createdAt) VALUES ('old', 'old.pdf', 1, 'remote', 'u', 'm', 'Failed', '2026-01-01');
+    PRAGMA user_version = 1;`);
+  legacy.close();
+  const store = new TaskStore(legacyPath);
+  t.after(() => store.close());
+  assert.equal(store.get('old').failedStage, null);
+  for (const stage of ['Queued', 'Parsing', 'Running Crafter']) {
+    const record = task();
+    store.insert(record);
+    if (stage !== 'Queued') store.update(record.id, { status: stage });
+    assert.equal(store.update(record.id, { status: 'Failed', error: 'stopped' }).failedStage, stage);
+    // A later Failed update keeps the original stage.
+    assert.equal(store.update(record.id, { status: 'Failed', error: 'again' }).failedStage, stage);
+  }
+  const completed = task();
+  store.insert(completed);
+  assert.equal(store.update(completed.id, { status: 'Completed' }).failedStage, null);
+  assert.throws(() => store.update(completed.id, { failedStage: 'Completed' }), /Invalid failed stage/);
 });
 
 test('Published files reject traversal, hidden/sensitive paths, symlinks and hardlinks', async t => {

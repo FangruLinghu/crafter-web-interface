@@ -20,7 +20,7 @@
 
 `POST /api/tasks` 的唯一文件字段为 `paper`。远程字段：`mode=remote`、`baseUrl`、`model`、`apiKey`；本地字段：`mode=local`、`localModelId`。重跑使用相同的模型字段，不提交文件。远程重跑必须重新提供 key。
 
-Task 字段：`id,paperName,pdfBytes,mode,baseUrl,model,localModelId,status,createdAt,startedAt,finishedAt,error,waitReason,rerunOf,withdrawn`。没有 API key 字段；进程组标识不对外返回。时间为 ISO-8601 UTC。
+Task 字段：`id,paperName,pdfBytes,mode,baseUrl,model,localModelId,status,createdAt,startedAt,finishedAt,error,waitReason,rerunOf,withdrawn,failedStage`。`failedStage` 仅在任务失败时有值，记录失败前所处阶段（`Queued`、`Parsing` 或 `Running Crafter`），升级前失败的旧任务为 `null`。没有 API key 字段；进程组标识不对外返回。时间为 ISO-8601 UTC。
 
 中断前未完成输出保护检查时，outputs 返回空数组和 `unavailableReason`；下载/预览返回 409。失败任务中已检查的输出保留并标记 partial。内部 work 目录没有公开接口。
 
