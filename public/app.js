@@ -141,6 +141,7 @@
     $('stat-queued').textContent = String(state.tasks.filter((task) => task.status === 'Queued').length);
     $('stat-running').textContent = String(state.tasks.filter((task) => activeStatuses.has(task.status)).length);
     $('stat-completed').textContent = String(state.tasks.filter((task) => task.status === 'Completed').length);
+    $('stat-failed').textContent = String(state.tasks.filter((task) => task.status === 'Failed').length);
     const signature = JSON.stringify([state.selectedId, query, filter, filtered.map(({ id, paperName, status, createdAt, model }) => [id, paperName, status, createdAt, model])]);
     if (signature === state.listSignature) return;
     state.listSignature = signature;
@@ -177,12 +178,54 @@
     list.scrollTop = previousScroll;
   }
 
+  const STEPS = [
+    { status: 'Queued', label: 'Queued' },
+    { status: 'Parsing', label: 'Parsing paper' },
+    { status: 'Running Crafter', label: 'Generating code' },
+    { status: 'Completed', label: 'Completed' },
+  ];
+
+  // Each step is done, current, failed or pending. A failed task marks the stage it stopped in;
+  // tasks that failed before stages were recorded fall back to marking the last step.
+  function stepStates(task) {
+    if (task.status === 'Completed') return STEPS.map(() => 'done');
+    if (task.status === 'Failed') {
+      const stage = task.failedStage || (task.startedAt ? null : 'Queued');
+      const index = STEPS.findIndex((step) => step.status === stage);
+      if (index === -1) return STEPS.map((_, i) => (i === STEPS.length - 1 ? 'failed' : 'pending'));
+      return STEPS.map((_, i) => (i < index ? 'done' : i === index ? 'failed' : 'pending'));
+    }
+    const index = STEPS.findIndex((step) => step.status === task.status);
+    return STEPS.map((_, i) => (i < index ? 'done' : i === index ? 'current' : 'pending'));
+  }
+
+  function renderSteps(task) {
+    const states = stepStates(task);
+    const unknownStage = task.status === 'Failed' && states[STEPS.length - 1] === 'failed';
+    const notes = { current: 'In progress', failed: unknownStage ? 'Stage not recorded' : 'Stopped here', done: '', pending: '' };
+    const spoken = { done: 'done', current: 'in progress', failed: 'failed', pending: 'not started' };
+    $('task-steps').replaceChildren(...STEPS.map((step, i) => {
+      const state = states[i];
+      const item = node('li', `task-step ${state}`);
+      if (state === 'current') item.setAttribute('aria-current', 'step');
+      const marker = node('span', 'step-marker', state === 'done' ? '✓' : state === 'failed' ? '✕' : String(i + 1));
+      marker.setAttribute('aria-hidden', 'true');
+      const label = i === STEPS.length - 1 && unknownStage ? 'Failed' : step.label;
+      item.append(marker, node('span', 'step-label', label));
+      const note = state === 'current' && step.status === 'Queued' ? 'Waiting' : notes[state];
+      if (note) item.append(node('span', 'step-note', note));
+      item.append(node('span', 'sr-only', `: ${spoken[state]}`));
+      return item;
+    }));
+  }
+
   function showTask(task) {
     $('detail-empty').hidden = Boolean(task);
     $('task-detail').hidden = !task;
     if (!task) return;
     $('task-title').textContent = task.paperName;
     $('task-status').replaceChildren(statusBadge(task.status));
+    renderSteps(task);
     $('task-id').textContent = `#${task.id.slice(0, 8)}`;
     $('task-id').title = task.id;
     $('task-model').textContent = task.model;
@@ -200,7 +243,7 @@
     const terminal = finalStatuses.has(task.status);
     $('delete-button').disabled = active;
     $('delete-button').title = active ? 'Tasks cannot be deleted during parsing or generation' : task.status === 'Queued' ? 'Withdraw and delete queued task' : 'Delete task';
-    $('delete-button').setAttribute('aria-label', $('delete-button').title);
+    $('delete-button').textContent = task.status === 'Queued' ? 'Withdraw' : 'Delete';
     $('live-tag').hidden = !active;
     $('log-status').textContent = active ? 'Receiving execution output' : task.status === 'Queued' ? 'Waiting for the task to start' : 'Retained execution logs';
     const message = task.error || task.waitReason || (task.status === 'Queued' ? 'This task is queued. It will start when earlier tasks finish and resources are available.' : '');
@@ -584,7 +627,7 @@
       state.config = await api('/api/config');
       const { integration = {}, limits = {}, localModels = [] } = state.config;
       const integrationMessage = integration.demo
-        ? `Demo mode: test scripts verify the workflow without calling real Crafter.${integration.message ? ` ${integration.message}` : ''}`
+        ? integration.message || 'Demo mode: test scripts run the workflow without calling a model or the real Crafter engine, so no paper is implemented.'
         : integration.adapter === 'ptc' ? integration.message
         : !integration.ready ? integration.message || 'Crafter is not configured. Ask your administrator to connect the real preprocessing and Crafter scripts.' : '';
       notice('integration-banner', integrationMessage, `notice integration-notice${integration.demo ? ' demo' : ''}`);
